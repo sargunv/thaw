@@ -1,0 +1,33 @@
+[settings]
+experimental = true
+pin = true
+
+[tools]
+go = "1.26.1"
+dprint = "0.53.0"
+hk = "1.38.0"
+golangci-lint = "2.11.3"
+pkl = "0.31.0"
+"github:sargunv/jvl" = "2026.03.01"
+
+[hooks]
+postinstall = [
+  "hk install --mise",
+  "go mod download",
+]
+
+[tasks.check]
+description = "Run all checks"
+run = "hk check --all"
+
+[tasks.fix]
+description = "Fix all auto-fixable issues"
+run = "hk fix --all"
+
+[tasks.build]
+description = "Build thaw binary"
+run = "go build -o thaw ."
+
+[tasks.run]
+description = "Run thaw"
+run = "go run ."

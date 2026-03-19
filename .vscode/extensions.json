@@ -1,0 +1,7 @@
+{
+  "recommendations": [
+    "dprint.dprint",
+    "golang.Go",
+    "hverlin.mise-vscode"
+  ]
+}
