@@ -3,28 +3,25 @@ package cmd
 import (
 	"fmt"
 	"os"
-	"path/filepath"
 
 	"github.com/spf13/cobra"
 )
 
 func (rc *rootCmd) newRestoreCmd() *cobra.Command {
 	return &cobra.Command{
-		Use:   "restore <path>",
-		Short: "Restore a materialized file back to its original symlink",
-		Args:  cobra.ExactArgs(1),
+		Use:     "restore <path>",
+		Short:   "Restore a materialized file back to its original symlink",
+		Example: `  thaw restore ~/.config/foo/config.toml`,
+		Args:    cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			path, err := filepath.Abs(args[0])
-			if err != nil {
-				return fmt.Errorf("resolving path: %w", err)
-			}
-
-			entry, found, err := rc.store.Get(path)
+			path, err := absPath(args[0])
 			if err != nil {
 				return err
 			}
-			if !found {
-				return fmt.Errorf("path not tracked: %s", path)
+
+			entry, err := rc.getTrackedEntry(path)
+			if err != nil {
+				return err
 			}
 
 			if err := os.Remove(path); err != nil {
@@ -39,7 +36,7 @@ func (rc *rootCmd) newRestoreCmd() *cobra.Command {
 				return err
 			}
 
-			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Restored %s -> %s\n", path, entry.Target)
+			rc.printer.PrintRestored(path, entry.Target)
 			return nil
 		},
 	}

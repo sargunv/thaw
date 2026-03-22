@@ -14,11 +14,14 @@ func (rc *rootCmd) newMaterializeCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "materialize <path>",
 		Short: "Replace a symlink with a mutable copy of its target",
-		Args:  cobra.ExactArgs(1),
+		Example: `  thaw materialize ~/.config/foo/config.toml
+  # app writes to the file
+  thaw diff ~/.config/foo/config.toml`,
+		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			path, err := filepath.Abs(args[0])
+			path, err := absPath(args[0])
 			if err != nil {
-				return fmt.Errorf("resolving path: %w", err)
+				return err
 			}
 
 			fi, err := os.Lstat(path)
@@ -61,7 +64,7 @@ func (rc *rootCmd) newMaterializeCmd() *cobra.Command {
 				return fmt.Errorf("copying file: %w", err)
 			}
 
-			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Materialized %s\n", path)
+			rc.printer.PrintMaterialized(path)
 			return nil
 		},
 	}
