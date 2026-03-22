@@ -13,6 +13,10 @@ local allSteps = new Mapping<String, Step> {
     check = "golangci-lint run ./..."
     fix = "golangci-lint run --fix ./..."
   }
+  ["gomod2nix"] {
+    glob = List("go.mod", "go.sum")
+    fix = "gomod2nix generate"
+  }
 }
 
 hooks {
@@ -24,6 +28,12 @@ hooks {
     }
   }
   ["check"] {
+    steps {
+      ...allSteps
+    }
+  }
+  ["fix"] {
+    fix = true
     steps {
       ...allSteps
     }

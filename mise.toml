@@ -9,6 +9,7 @@ hk = "1.38.0"
 golangci-lint = "2.11.3"
 pkl = "0.31.0"
 "github:sargunv/jvl" = "2026.03.01"
+"go:github.com/nix-community/gomod2nix" = "latest"
 
 [hooks]
 postinstall = [
@@ -31,3 +32,7 @@ run = "go build -o thaw ."
 [tasks.run]
 description = "Run thaw"
 run = "go run ."
+
+[tasks.test]
+description = "Run tests"
+run = "go test ./..."
