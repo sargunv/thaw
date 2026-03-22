@@ -1,9 +1,13 @@
 package cmd_test
 
 import (
+	"bytes"
+	"errors"
+	"fmt"
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/sargunv/thaw/cmd"
@@ -19,6 +23,17 @@ func runCmd(t *testing.T, stateDir string, args ...string) error {
 	root.SetOut(io.Discard)
 	root.SetErr(io.Discard)
 	return root.Execute()
+}
+
+func runCmdWithOutput(t *testing.T, stateDir string, args ...string) (string, error) {
+	t.Helper()
+	var buf bytes.Buffer
+	root := cmd.New()
+	root.SetArgs(append([]string{"--state-dir", stateDir}, args...))
+	root.SetOut(&buf)
+	root.SetErr(io.Discard)
+	err := root.Execute()
+	return buf.String(), err
 }
 
 // setupSymlink creates a target file with content and a symlink pointing to it.
@@ -224,4 +239,116 @@ func TestClearNotTracked(t *testing.T) {
 
 	err := runCmd(t, stateDir, "clear", filepath.Join(fsDir, "nonexistent"))
 	assert.ErrorContains(t, err, "not tracked")
+}
+
+func TestDiffNoChanges(t *testing.T) {
+	stateDir := t.TempDir()
+	fsDir := t.TempDir()
+	link, _ := setupSymlink(t, fsDir, "key = \"value\"\n", 0o644)
+
+	require.NoError(t, runCmd(t, stateDir, "materialize", link))
+
+	err := runCmd(t, stateDir, "diff", link)
+	assert.NoError(t, err)
+}
+
+func TestDiffWithChanges(t *testing.T) {
+	stateDir := t.TempDir()
+	fsDir := t.TempDir()
+	link, _ := setupSymlink(t, fsDir, "original\n", 0o644)
+
+	require.NoError(t, runCmd(t, stateDir, "materialize", link))
+	require.NoError(t, os.WriteFile(link, []byte("modified\n"), 0o644))
+
+	err := runCmd(t, stateDir, "diff", link)
+	var exitErr *cmd.ExitError
+	require.ErrorAs(t, err, &exitErr)
+	assert.Equal(t, 1, exitErr.Code)
+}
+
+func TestDiffNotTracked(t *testing.T) {
+	stateDir := t.TempDir()
+	fsDir := t.TempDir()
+
+	err := runCmd(t, stateDir, "diff", filepath.Join(fsDir, "nonexistent"))
+	assert.ErrorContains(t, err, "not tracked")
+}
+
+func TestDiffToolNotFound(t *testing.T) {
+	t.Setenv("THAW_DIFF", "thaw-nonexistent-tool-xyz")
+	stateDir := t.TempDir()
+	fsDir := t.TempDir()
+	link, _ := setupSymlink(t, fsDir, "content\n", 0o644)
+
+	require.NoError(t, runCmd(t, stateDir, "materialize", link))
+
+	err := runCmd(t, stateDir, "diff", link)
+	assert.ErrorContains(t, err, "running diff tool")
+}
+
+func TestDiffToolExitError(t *testing.T) {
+	stateDir := t.TempDir()
+	fsDir := t.TempDir()
+	link, _ := setupSymlink(t, fsDir, "content\n", 0o644)
+
+	require.NoError(t, runCmd(t, stateDir, "materialize", link))
+
+	// Delete the original target so diff gets a nonexistent path, causing exit code 2
+	require.NoError(t, os.Remove(filepath.Join(fsDir, "store", "config.toml")))
+
+	err := runCmd(t, stateDir, "diff", link)
+	assert.ErrorContains(t, err, "diff tool exited with code 2")
+	var exitErr *cmd.ExitError
+	assert.False(t, errors.As(err, &exitErr))
+}
+
+func TestStatusEmpty(t *testing.T) {
+	stateDir := t.TempDir()
+
+	output, err := runCmdWithOutput(t, stateDir, "status")
+	require.NoError(t, err)
+	assert.Equal(t, "No materialized files\n", output)
+}
+
+func TestStatus(t *testing.T) {
+	stateDir := t.TempDir()
+	fsDir := t.TempDir()
+	link, target := setupSymlink(t, fsDir, "content", 0o644)
+
+	require.NoError(t, runCmd(t, stateDir, "materialize", link))
+
+	output, err := runCmdWithOutput(t, stateDir, "status")
+	require.NoError(t, err)
+	assert.Contains(t, output, fmt.Sprintf("%s -> %s", link, target))
+}
+
+func TestStatusSorted(t *testing.T) {
+	stateDir := t.TempDir()
+	fsDir := t.TempDir()
+
+	// Create two symlinks in the same dir with predictable names
+	aTarget := filepath.Join(fsDir, "store", "a.toml")
+	require.NoError(t, os.MkdirAll(filepath.Dir(aTarget), 0o755))
+	require.NoError(t, os.WriteFile(aTarget, []byte("a"), 0o644))
+	aLink := filepath.Join(fsDir, "home", "a.toml")
+	require.NoError(t, os.MkdirAll(filepath.Dir(aLink), 0o755))
+	require.NoError(t, os.Symlink(aTarget, aLink))
+
+	bTarget := filepath.Join(fsDir, "store", "b.toml")
+	require.NoError(t, os.WriteFile(bTarget, []byte("b"), 0o644))
+	bLink := filepath.Join(fsDir, "home", "b.toml")
+	require.NoError(t, os.Symlink(bTarget, bLink))
+
+	// Materialize b first, then a — output should still be sorted
+	require.NoError(t, runCmd(t, stateDir, "materialize", bLink))
+	require.NoError(t, runCmd(t, stateDir, "materialize", aLink))
+
+	output, err := runCmdWithOutput(t, stateDir, "status")
+	require.NoError(t, err)
+
+	aIdx := strings.Index(output, aLink)
+	bIdx := strings.Index(output, bLink)
+	assert.Greater(t, aIdx, -1, "expected output to contain %s", aLink)
+	assert.Greater(t, bIdx, -1, "expected output to contain %s", bLink)
+	assert.Less(t, aIdx, bIdx, "expected %s to appear before %s", aLink, bLink)
 }

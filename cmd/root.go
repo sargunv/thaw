@@ -34,6 +34,8 @@ against the original or restore the symlink.`,
 		rc.newMaterializeCmd(),
 		rc.newRestoreCmd(),
 		rc.newClearCmd(),
+		rc.newDiffCmd(),
+		rc.newStatusCmd(),
 	)
 
 	return cmd
