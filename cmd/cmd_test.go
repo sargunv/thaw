@@ -3,7 +3,6 @@ package cmd_test
 import (
 	"bytes"
 	"errors"
-	"fmt"
 	"io"
 	"os"
 	"path/filepath"
@@ -81,7 +80,7 @@ func TestMaterialize(t *testing.T) {
 	assert.Equal(t, target, entry.Target)
 }
 
-func TestMaterializeAlreadyTracked(t *testing.T) {
+func TestMaterializeStaleEntry(t *testing.T) {
 	stateDir := t.TempDir()
 	fsDir := t.TempDir()
 	link, target := setupSymlink(t, fsDir, "content", 0o644)
@@ -89,12 +88,17 @@ func TestMaterializeAlreadyTracked(t *testing.T) {
 	err := runCmd(t, stateDir, "materialize", link)
 	require.NoError(t, err)
 
-	// Replace the regular file with a symlink again to test the state check
+	// Replace the regular file with a symlink again (simulates dotfile manager re-apply)
 	require.NoError(t, os.Remove(link))
 	require.NoError(t, os.Symlink(target, link))
 
+	// Re-materializing should succeed — stale state entry is replaced
 	err = runCmd(t, stateDir, "materialize", link)
-	assert.ErrorContains(t, err, "already materialized")
+	require.NoError(t, err)
+
+	fi, err := os.Lstat(link)
+	require.NoError(t, err)
+	assert.True(t, fi.Mode().IsRegular(), "expected regular file, got %s", fi.Mode())
 }
 
 func TestMaterializeNotASymlink(t *testing.T) {
@@ -148,13 +152,16 @@ func TestMaterializeRelativeSymlink(t *testing.T) {
 	assert.True(t, found)
 	assert.Equal(t, target, entry.Target)
 
-	// Restore should work with the resolved absolute path
+	// Raw target should be preserved
+	assert.Equal(t, relTarget, entry.RawTarget)
+
+	// Restore should recreate the original relative symlink
 	err = runCmd(t, stateDir, "restore", link)
 	require.NoError(t, err)
 
 	got, err := os.Readlink(link)
 	require.NoError(t, err)
-	assert.Equal(t, target, got)
+	assert.Equal(t, relTarget, got)
 }
 
 func TestMaterializePreservesPermissions(t *testing.T) {
@@ -205,10 +212,10 @@ func TestRestoreNotTracked(t *testing.T) {
 	fsDir := t.TempDir()
 
 	err := runCmd(t, stateDir, "restore", filepath.Join(fsDir, "nonexistent"))
-	assert.ErrorContains(t, err, "not tracked")
+	assert.ErrorContains(t, err, "is not tracked by thaw")
 }
 
-func TestClear(t *testing.T) {
+func TestUntrack(t *testing.T) {
 	stateDir := t.TempDir()
 	fsDir := t.TempDir()
 	link, _ := setupSymlink(t, fsDir, "content", 0o644)
@@ -218,7 +225,7 @@ func TestClear(t *testing.T) {
 	require.NoError(t, err)
 
 	// Clear
-	err = runCmd(t, stateDir, "clear", link)
+	err = runCmd(t, stateDir, "untrack", link)
 	require.NoError(t, err)
 
 	// State should be cleared
@@ -233,12 +240,12 @@ func TestClear(t *testing.T) {
 	assert.True(t, fi.Mode().IsRegular())
 }
 
-func TestClearNotTracked(t *testing.T) {
+func TestUntrackNotTracked(t *testing.T) {
 	stateDir := t.TempDir()
 	fsDir := t.TempDir()
 
-	err := runCmd(t, stateDir, "clear", filepath.Join(fsDir, "nonexistent"))
-	assert.ErrorContains(t, err, "not tracked")
+	err := runCmd(t, stateDir, "untrack", filepath.Join(fsDir, "nonexistent"))
+	assert.ErrorContains(t, err, "is not tracked by thaw")
 }
 
 func TestDiffNoChanges(t *testing.T) {
@@ -271,7 +278,7 @@ func TestDiffNotTracked(t *testing.T) {
 	fsDir := t.TempDir()
 
 	err := runCmd(t, stateDir, "diff", filepath.Join(fsDir, "nonexistent"))
-	assert.ErrorContains(t, err, "not tracked")
+	assert.ErrorContains(t, err, "is not tracked by thaw")
 }
 
 func TestDiffToolNotFound(t *testing.T) {
@@ -283,7 +290,7 @@ func TestDiffToolNotFound(t *testing.T) {
 	require.NoError(t, runCmd(t, stateDir, "materialize", link))
 
 	err := runCmd(t, stateDir, "diff", link)
-	assert.ErrorContains(t, err, "running diff tool")
+	assert.ErrorContains(t, err, "running thaw-nonexistent-tool-xyz")
 }
 
 func TestDiffToolExitError(t *testing.T) {
@@ -297,7 +304,7 @@ func TestDiffToolExitError(t *testing.T) {
 	require.NoError(t, os.Remove(filepath.Join(fsDir, "store", "config.toml")))
 
 	err := runCmd(t, stateDir, "diff", link)
-	assert.ErrorContains(t, err, "diff tool exited with code 2")
+	assert.ErrorContains(t, err, "exited with code 2")
 	var exitErr *cmd.ExitError
 	assert.False(t, errors.As(err, &exitErr))
 }
@@ -307,7 +314,7 @@ func TestStatusEmpty(t *testing.T) {
 
 	output, err := runCmdWithOutput(t, stateDir, "status")
 	require.NoError(t, err)
-	assert.Equal(t, "No materialized files\n", output)
+	assert.Contains(t, output, "No materialized files")
 }
 
 func TestStatus(t *testing.T) {
@@ -319,7 +326,9 @@ func TestStatus(t *testing.T) {
 
 	output, err := runCmdWithOutput(t, stateDir, "status")
 	require.NoError(t, err)
-	assert.Contains(t, output, fmt.Sprintf("%s -> %s", link, target))
+	assert.Contains(t, output, link)
+	assert.Contains(t, output, target)
+	assert.Contains(t, output, "PATH")
 }
 
 func TestStatusSorted(t *testing.T) {

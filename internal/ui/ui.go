@@ -1,3 +1,4 @@
+// Package ui provides styled terminal output for thaw CLI commands.
 package ui
 
 import (
@@ -7,6 +8,7 @@ import (
 	"time"
 
 	"charm.land/lipgloss/v2"
+	"charm.land/lipgloss/v2/table"
 	"github.com/charmbracelet/colorprofile"
 	"github.com/sargunv/thaw/internal/state"
 )
@@ -27,7 +29,7 @@ func NewPrinter(w *colorprofile.Writer, isDark bool) *Printer {
 		w: w,
 		verb: lipgloss.NewStyle().
 			Bold(true).
-			Foreground(lipgloss.Green).
+			Foreground(ld(lipgloss.Green, lipgloss.Color("#006600"))).
 			Width(verbWidth).
 			Align(lipgloss.Right),
 		muted: lipgloss.NewStyle().
@@ -50,37 +52,45 @@ func (p *Printer) PrintRestored(path, target string) {
 	)
 }
 
-// PrintCleared prints the success message for the clear command.
-func (p *Printer) PrintCleared(path string) {
-	_, _ = fmt.Fprintf(p.w, "%s %s\n", p.verb.Render("Cleared"), path)
+// PrintUntracked prints the success message for the untrack command.
+func (p *Printer) PrintUntracked(path string) {
+	_, _ = fmt.Fprintf(p.w, "%s %s\n", p.verb.Render("Untracked"), path)
 }
 
-// PrintStatus prints the status table with column-aligned entries.
+// PrintStatus prints the status table.
 func (p *Printer) PrintStatus(entries map[string]state.Entry) {
 	paths := slices.Sorted(maps.Keys(entries))
 
-	maxPathWidth := 0
-	maxTargetWidth := 0
-	for _, path := range paths {
-		if w := lipgloss.Width(path); w > maxPathWidth {
-			maxPathWidth = w
-		}
-		if w := lipgloss.Width(entries[path].Target); w > maxTargetWidth {
-			maxTargetWidth = w
+	rows := make([][]string, len(paths))
+	for i, path := range paths {
+		e := entries[path]
+		rows[i] = []string{
+			path,
+			e.Target,
+			e.MaterializedAt.Local().Format(time.DateTime),
 		}
 	}
 
-	for _, path := range paths {
-		e := entries[path]
-		pathPad := maxPathWidth - lipgloss.Width(path)
-		targetPad := maxTargetWidth - lipgloss.Width(e.Target)
-		_, _ = fmt.Fprintf(p.w, "%s%*s %s %s%*s  %s\n",
-			path, pathPad, "",
-			p.muted.Render("->"),
-			e.Target, targetPad, "",
-			p.muted.Render(e.MaterializedAt.Local().Format(time.DateTime)),
-		)
-	}
+	t := table.New().
+		Headers("PATH", "ORIGINAL TARGET", "MATERIALIZED AT").
+		Rows(rows...).
+		BorderTop(false).
+		BorderBottom(false).
+		BorderLeft(false).
+		BorderRight(false).
+		BorderColumn(false).
+		BorderRow(false).
+		StyleFunc(func(row, col int) lipgloss.Style {
+			if row == table.HeaderRow {
+				return p.muted
+			}
+			if col == 2 {
+				return p.muted
+			}
+			return lipgloss.NewStyle()
+		})
+
+	_, _ = fmt.Fprintln(p.w, t)
 }
 
 // PrintNoMaterialized prints the empty-state message.

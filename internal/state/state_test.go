@@ -22,7 +22,7 @@ var testTime = time.Date(2026, 3, 18, 10, 30, 0, 0, time.UTC)
 func TestAddAndGet(t *testing.T) {
 	s := newTestStore(t)
 
-	err := s.Add("/home/alice/.config/foo.toml", "/nix/store/abc123/foo.toml", testTime)
+	err := s.Add("/home/alice/.config/foo.toml", "/nix/store/abc123/foo.toml", "/nix/store/abc123/foo.toml", testTime)
 	require.NoError(t, err)
 
 	entry, found, err := s.Get("/home/alice/.config/foo.toml")
@@ -43,17 +43,17 @@ func TestGetNotFound(t *testing.T) {
 func TestAddDuplicate(t *testing.T) {
 	s := newTestStore(t)
 
-	err := s.Add("/home/alice/.config/foo.toml", "/nix/store/abc123/foo.toml", testTime)
+	err := s.Add("/home/alice/.config/foo.toml", "/nix/store/abc123/foo.toml", "/nix/store/abc123/foo.toml", testTime)
 	require.NoError(t, err)
 
-	err = s.Add("/home/alice/.config/foo.toml", "/nix/store/other/foo.toml", testTime)
+	err = s.Add("/home/alice/.config/foo.toml", "/nix/store/other/foo.toml", "/nix/store/other/foo.toml", testTime)
 	assert.ErrorContains(t, err, "already materialized")
 }
 
 func TestRemove(t *testing.T) {
 	s := newTestStore(t)
 
-	err := s.Add("/home/alice/.config/foo.toml", "/nix/store/abc123/foo.toml", testTime)
+	err := s.Add("/home/alice/.config/foo.toml", "/nix/store/abc123/foo.toml", "/nix/store/abc123/foo.toml", testTime)
 	require.NoError(t, err)
 
 	err = s.Remove("/home/alice/.config/foo.toml")
@@ -78,9 +78,9 @@ func TestList(t *testing.T) {
 	require.NoError(t, err)
 	assert.Empty(t, entries)
 
-	err = s.Add("/home/alice/.config/foo.toml", "/nix/store/abc/foo.toml", testTime)
+	err = s.Add("/home/alice/.config/foo.toml", "/nix/store/abc/foo.toml", "/nix/store/abc/foo.toml", testTime)
 	require.NoError(t, err)
-	err = s.Add("/home/alice/.config/bar.toml", "/nix/store/def/bar.toml", testTime)
+	err = s.Add("/home/alice/.config/bar.toml", "/nix/store/def/bar.toml", "/nix/store/def/bar.toml", testTime)
 	require.NoError(t, err)
 
 	entries, err = s.List()
@@ -94,7 +94,7 @@ func TestStateFileFormat(t *testing.T) {
 	dir := t.TempDir()
 	s := state.NewStore(dir)
 
-	err := s.Add("/home/alice/.config/foo.toml", "/nix/store/abc123/foo.toml", testTime)
+	err := s.Add("/home/alice/.config/foo.toml", "/nix/store/abc123/foo.toml", "/nix/store/abc123/foo.toml", testTime)
 	require.NoError(t, err)
 
 	data, err := os.ReadFile(filepath.Join(dir, "state.json"))
@@ -122,7 +122,7 @@ func TestCorruptedStateFile(t *testing.T) {
 	_, _, err = s.Get("/anything")
 	assert.ErrorContains(t, err, "parsing state file")
 
-	err = s.Add("/foo", "/bar", testTime)
+	err = s.Add("/foo", "/bar", "/bar", testTime)
 	assert.ErrorContains(t, err, "parsing state file")
 }
 
@@ -142,7 +142,7 @@ func TestAutoCreatesDirectory(t *testing.T) {
 	dir := filepath.Join(t.TempDir(), "nested", "state", "dir")
 	s := state.NewStore(dir)
 
-	err := s.Add("/home/alice/.config/foo.toml", "/nix/store/abc/foo.toml", testTime)
+	err := s.Add("/home/alice/.config/foo.toml", "/nix/store/abc/foo.toml", "/nix/store/abc/foo.toml", testTime)
 	require.NoError(t, err)
 
 	_, err = os.Stat(filepath.Join(dir, "state.json"))

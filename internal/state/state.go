@@ -1,3 +1,5 @@
+// Package state manages thaw's persistent state file, stored as JSON
+// at $XDG_STATE_HOME/thaw/state.json with a lockfile for concurrent access.
 package state
 
 import (
@@ -19,9 +21,17 @@ const (
 	lockFileName  = "state.lock"
 )
 
+var (
+	// ErrAlreadyMaterialized is returned when trying to materialize a path that is already tracked.
+	ErrAlreadyMaterialized = errors.New("path already materialized")
+	// ErrNotTracked is returned when operating on a path that is not tracked.
+	ErrNotTracked = errors.New("path not tracked")
+)
+
 // Entry represents a single materialized file.
 type Entry struct {
 	Target         string    `json:"target"`
+	RawTarget      string    `json:"raw_target,omitempty"`
 	MaterializedAt time.Time `json:"materialized_at"`
 }
 
@@ -48,7 +58,7 @@ func NewStore(dir string) *Store {
 
 // ensureDir creates the state directory if it doesn't exist.
 func (s *Store) ensureDir() error {
-	return os.MkdirAll(s.dir, 0o755)
+	return os.MkdirAll(s.dir, 0o700)
 }
 
 func (s *Store) statePath() string {
@@ -74,7 +84,7 @@ func (s *Store) load() (*stateFile, error) {
 		return nil, fmt.Errorf("parsing state file: %w", err)
 	}
 	if sf.Version != stateVersion {
-		return nil, fmt.Errorf("unsupported state version %d (expected %d)", sf.Version, stateVersion)
+		return nil, fmt.Errorf("unsupported state version %d (expected %d); the state file may have been written by a newer version of thaw", sf.Version, stateVersion)
 	}
 	if sf.Entries == nil {
 		sf.Entries = make(map[string]Entry)
@@ -89,43 +99,43 @@ func (s *Store) save(sf *stateFile) error {
 		return fmt.Errorf("marshaling state: %w", err)
 	}
 	data = append(data, '\n')
-	if err := renameio.WriteFile(s.statePath(), data, 0o644); err != nil {
+	if err := renameio.WriteFile(s.statePath(), data, 0o600); err != nil {
 		return fmt.Errorf("writing state file: %w", err)
 	}
 	return nil
 }
 
-// withLock runs fn while holding an exclusive lock on the state lockfile.
+// withLock runs fn while holding an exclusive lock on the lockfile.
 func (s *Store) withLock(fn func() error) error {
-	if err := s.ensureDir(); err != nil {
-		return fmt.Errorf("creating state directory: %w", err)
-	}
-
-	fl := flock.New(s.lockPath())
-	if err := fl.Lock(); err != nil {
-		return fmt.Errorf("acquiring state lock: %w", err)
-	}
-	defer func() { _ = fl.Unlock() }()
-
-	return fn()
+	return s.withFlock(false, fn)
 }
 
-// withRLock runs fn while holding a shared read lock on the state lockfile.
+// withRLock runs fn while holding a shared lock on the lockfile.
 func (s *Store) withRLock(fn func() error) error {
+	return s.withFlock(true, fn)
+}
+
+func (s *Store) withFlock(shared bool, fn func() error) error {
 	if err := s.ensureDir(); err != nil {
 		return fmt.Errorf("creating state directory: %w", err)
 	}
 
 	fl := flock.New(s.lockPath())
-	if err := fl.RLock(); err != nil {
-		return fmt.Errorf("acquiring state lock: %w", err)
+	if shared {
+		if err := fl.RLock(); err != nil {
+			return fmt.Errorf("acquiring state lock: %w", err)
+		}
+	} else {
+		if err := fl.Lock(); err != nil {
+			return fmt.Errorf("acquiring state lock: %w", err)
+		}
 	}
 	defer func() { _ = fl.Unlock() }()
 
 	return fn()
 }
 
-// Get returns the entry for the given path, or false if not found.
+// Get returns the entry for the given path. The bool is false if the path is not tracked.
 func (s *Store) Get(path string) (Entry, bool, error) {
 	var entry Entry
 	var found bool
@@ -141,24 +151,25 @@ func (s *Store) Get(path string) (Entry, bool, error) {
 }
 
 // Add records a new entry. Returns an error if the path is already tracked.
-func (s *Store) Add(path string, target string, materializedAt time.Time) error {
+func (s *Store) Add(path string, target string, rawTarget string, materializedAt time.Time) error {
 	return s.withLock(func() error {
 		sf, err := s.load()
 		if err != nil {
 			return err
 		}
 		if _, exists := sf.Entries[path]; exists {
-			return fmt.Errorf("path already materialized: %s", path)
+			return fmt.Errorf("%s: %w", path, ErrAlreadyMaterialized)
 		}
 		sf.Entries[path] = Entry{
 			Target:         target,
+			RawTarget:      rawTarget,
 			MaterializedAt: materializedAt,
 		}
 		return s.save(sf)
 	})
 }
 
-// Remove deletes the entry for the given path. Returns an error if not found.
+// Remove deletes the entry for the given path. Returns an error if the path is not tracked.
 func (s *Store) Remove(path string) error {
 	return s.withLock(func() error {
 		sf, err := s.load()
@@ -166,7 +177,7 @@ func (s *Store) Remove(path string) error {
 			return err
 		}
 		if _, exists := sf.Entries[path]; !exists {
-			return fmt.Errorf("path not tracked: %s", path)
+			return fmt.Errorf("%s: %w", path, ErrNotTracked)
 		}
 		delete(sf.Entries, path)
 		return s.save(sf)
@@ -181,10 +192,7 @@ func (s *Store) List() (map[string]Entry, error) {
 		if err != nil {
 			return err
 		}
-		entries = make(map[string]Entry, len(sf.Entries))
-		for k, v := range sf.Entries {
-			entries[k] = v
-		}
+		entries = sf.Entries
 		return nil
 	})
 	return entries, err

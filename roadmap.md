@@ -11,7 +11,7 @@
 
 - `thaw materialize <path>` — validate symlink, record state, copy file
 - `thaw restore <path>` — re-create symlink, remove state entry
-- `thaw clear <path>` — remove state entry only
+- `thaw untrack <path>` — remove state entry only
 - Integration tests (create temp symlinks, run commands, assert filesystem
   state)
 
@@ -19,7 +19,7 @@
 
 - `thaw diff <path>` — look up original target, shell out to diff tool, exit
   code convention (0 = no changes, 1 = changes found)
-- `--tool` flag for selecting diff program
+- `--tool` flag and `THAW_DIFF` env var for selecting diff program
 - `thaw status` — list tracked files with targets and timestamps
 - Tests
 

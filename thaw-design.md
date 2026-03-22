@@ -31,7 +31,7 @@ thaw materialize ~/.config/foo/config.toml
 thaw diff ~/.config/foo/config.toml
 # user updates their dotfile source based on the diff
 # user re-applies their dotfile manager (overwrites the file with a new symlink)
-thaw clear ~/.config/foo/config.toml
+thaw untrack ~/.config/foo/config.toml
 ```
 
 ### Flow B: Temporarily materialize, then restore
@@ -62,8 +62,9 @@ Errors if the path is already materialized (i.e. already tracked in state).
 
 Exit code follows diff conventions: 0 = no changes, 1 = changes found.
 
-Optionally supports `--tool` to select the diff program (default: `diff`,
-could also use `delta`, `difft`, etc.).
+Supports `--tool` to select the diff program (default: `diff -u`; could also
+use `delta`, `difft`, etc.). The `THAW_DIFF` environment variable serves as
+a fallback when `--tool` is not specified.
 
 ### `thaw restore <path>`
 
@@ -72,7 +73,7 @@ could also use `delta`, `difft`, etc.).
 3. Re-create the symlink: `<path>` -> original target.
 4. Remove the state entry.
 
-### `thaw clear <path>`
+### `thaw untrack <path>`
 
 Remove the state entry for `<path>` without touching the filesystem. Used after
 the dotfile manager has already replaced the file with a fresh symlink.
@@ -138,5 +139,5 @@ commands simultaneously.
   Offer to materialize them.
 - **Source mapping**: Given a diff, grep a dotfile repo to suggest which
   source file likely generated the managed config.
-- **`thaw clear --all`**: Clear all entries whose paths are already symlinks
+- **`thaw untrack --all`**: Clear all entries whose paths are already symlinks
   again (i.e. the dotfile manager has already taken them back).

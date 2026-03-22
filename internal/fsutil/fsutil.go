@@ -1,43 +1,30 @@
+// Package fsutil provides filesystem utility functions used by thaw.
 package fsutil
 
 import (
 	"fmt"
 	"io"
 	"os"
+
+	"github.com/google/renameio/v2"
 )
 
-// CopyFile copies src to dst, preserving the source file's permissions.
-// dst must not already exist.
-func CopyFile(dst, src string) error {
-	srcFile, err := os.Open(src)
-	if err != nil {
-		return fmt.Errorf("opening source: %w", err)
-	}
-	defer func() { _ = srcFile.Close() }()
-
-	info, err := srcFile.Stat()
+// CopyFile atomically writes the contents of src to dst, preserving the source
+// file's permissions. The destination is written to a temporary file first,
+// then atomically renamed into place.
+func CopyFile(dst string, src *os.File) error {
+	info, err := src.Stat()
 	if err != nil {
 		return fmt.Errorf("statting source: %w", err)
 	}
 
-	dstFile, err := os.OpenFile(dst, os.O_WRONLY|os.O_CREATE|os.O_EXCL, info.Mode().Perm())
+	data, err := io.ReadAll(src)
 	if err != nil {
-		return fmt.Errorf("creating destination: %w", err)
+		return fmt.Errorf("reading source: %w", err)
 	}
 
-	if _, err := io.Copy(dstFile, srcFile); err != nil {
-		_ = dstFile.Close()
-		_ = os.Remove(dst)
-		return fmt.Errorf("copying data: %w", err)
-	}
-
-	if err := dstFile.Close(); err != nil {
-		_ = os.Remove(dst)
-		return fmt.Errorf("closing destination: %w", err)
-	}
-
-	if err := os.Chmod(dst, info.Mode().Perm()); err != nil {
-		return fmt.Errorf("setting permissions: %w", err)
+	if err := renameio.WriteFile(dst, data, info.Mode().Perm()); err != nil {
+		return fmt.Errorf("writing destination: %w", err)
 	}
 
 	return nil

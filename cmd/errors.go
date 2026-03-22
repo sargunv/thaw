@@ -2,8 +2,9 @@ package cmd
 
 import "fmt"
 
-// ExitError signals that a command completed with a specific non-zero exit
-// code that does not represent a failure (e.g. diff exit 1 = differences found).
+// ExitError signals that a command exited with a specific non-zero exit
+// code that carries semantic meaning rather than indicating failure
+// (e.g., diff exits 1 when differences are found).
 type ExitError struct{ Code int }
 
 func (e *ExitError) Error() string {
