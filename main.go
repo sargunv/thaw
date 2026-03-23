@@ -10,6 +10,8 @@ import (
 	"github.com/sargunv/thaw/cmd"
 )
 
+var version string
+
 func main() {
 	errHandler := func(w io.Writer, styles fang.Styles, err error) {
 		var exitErr *cmd.ExitError
@@ -19,7 +21,12 @@ func main() {
 		fang.DefaultErrorHandler(w, styles, err)
 	}
 
-	err := fang.Execute(context.Background(), cmd.New(), fang.WithErrorHandler(errHandler))
+	opts := []fang.Option{fang.WithErrorHandler(errHandler)}
+	if version != "" {
+		opts = append(opts, fang.WithVersion(version))
+	}
+
+	err := fang.Execute(context.Background(), cmd.New(), opts...)
 	if err != nil {
 		var exitErr *cmd.ExitError
 		if errors.As(err, &exitErr) {
