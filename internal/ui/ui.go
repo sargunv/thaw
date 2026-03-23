@@ -52,9 +52,9 @@ func (p *Printer) PrintRestored(path, target string) {
 	)
 }
 
-// PrintUntracked prints the success message for the untrack command.
-func (p *Printer) PrintUntracked(path string) {
-	_, _ = fmt.Fprintf(p.w, "%s %s\n", p.verb.Render("Untracked"), path)
+// PrintForgotten prints the success message for the forget command.
+func (p *Printer) PrintForgotten(path string) {
+	_, _ = fmt.Fprintf(p.w, "%s %s\n", p.verb.Render("Forgotten"), path)
 }
 
 // PrintStatus prints the status table.

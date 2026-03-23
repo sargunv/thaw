@@ -215,7 +215,7 @@ func TestRestoreNotTracked(t *testing.T) {
 	assert.ErrorContains(t, err, "is not tracked by thaw")
 }
 
-func TestUntrack(t *testing.T) {
+func TestForget(t *testing.T) {
 	stateDir := t.TempDir()
 	fsDir := t.TempDir()
 	link, _ := setupSymlink(t, fsDir, "content", 0o644)
@@ -225,7 +225,7 @@ func TestUntrack(t *testing.T) {
 	require.NoError(t, err)
 
 	// Clear
-	err = runCmd(t, stateDir, "untrack", link)
+	err = runCmd(t, stateDir, "forget", link)
 	require.NoError(t, err)
 
 	// State should be cleared
@@ -234,17 +234,17 @@ func TestUntrack(t *testing.T) {
 	require.NoError(t, err)
 	assert.False(t, found)
 
-	// File should still exist as a regular file (clear doesn't touch filesystem)
+	// File should still exist as a regular file (forget doesn't touch filesystem)
 	fi, err := os.Lstat(link)
 	require.NoError(t, err)
 	assert.True(t, fi.Mode().IsRegular())
 }
 
-func TestUntrackNotTracked(t *testing.T) {
+func TestForgetNotTracked(t *testing.T) {
 	stateDir := t.TempDir()
 	fsDir := t.TempDir()
 
-	err := runCmd(t, stateDir, "untrack", filepath.Join(fsDir, "nonexistent"))
+	err := runCmd(t, stateDir, "forget", filepath.Join(fsDir, "nonexistent"))
 	assert.ErrorContains(t, err, "is not tracked by thaw")
 }
 

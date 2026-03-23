@@ -37,7 +37,7 @@ thaw materialize ~/.config/foo/config.toml
 # app writes to the file
 thaw diff ~/.config/foo/config.toml
 # port the changes into your dotfile source, then re-apply your dotfile manager
-thaw untrack ~/.config/foo/config.toml
+thaw forget ~/.config/foo/config.toml
 ```
 
 ### Materialize, then restore

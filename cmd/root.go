@@ -36,7 +36,7 @@ Discover a config change and feed it back:
   # app writes to the file
   thaw diff ~/.config/foo/config.toml
   # update your dotfile source based on the diff
-  thaw untrack ~/.config/foo/config.toml
+  thaw forget ~/.config/foo/config.toml
 
 Temporarily materialize, then restore:
 
@@ -64,7 +64,7 @@ Temporarily materialize, then restore:
 	cmd.AddCommand(
 		rc.newMaterializeCmd(),
 		rc.newRestoreCmd(),
-		rc.newUntrackCmd(),
+		rc.newForgetCmd(),
 		rc.newDiffCmd(),
 		rc.newStatusCmd(),
 	)

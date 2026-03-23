@@ -8,11 +8,11 @@ import (
 	"github.com/spf13/cobra"
 )
 
-func (rc *rootCmd) newUntrackCmd() *cobra.Command {
+func (rc *rootCmd) newForgetCmd() *cobra.Command {
 	return &cobra.Command{
-		Use:     "untrack <path>",
+		Use:     "forget <path>",
 		Short:   "Stop tracking a file without modifying the filesystem",
-		Example: `  thaw untrack ~/.config/foo/config.toml`,
+		Example: `  thaw forget ~/.config/foo/config.toml`,
 		Args:    cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			path, err := absPath(args[0])
@@ -27,7 +27,7 @@ func (rc *rootCmd) newUntrackCmd() *cobra.Command {
 				return err
 			}
 
-			rc.printer.PrintUntracked(path)
+			rc.printer.PrintForgotten(path)
 			return nil
 		},
 	}

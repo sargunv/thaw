@@ -13,7 +13,7 @@ jobs:
 
       - uses: jdx/mise-action@v4
 
-      - name: Fix
+      - name: Format and lint
         run: mise run fix
 
       - name: Check for modified files
