@@ -9,6 +9,7 @@
 
   outputs =
     {
+      self,
       nixpkgs,
       gomod2nix,
       ...
@@ -36,7 +37,7 @@
         {
           default = gomod2nix.legacyPackages.${system}.buildGoApplication {
             pname = "thaw";
-            version = "dev";
+            version = self.shortRev or self.dirtyShortRev or "dev";
             src = ./.;
             modules = ./gomod2nix.toml;
             CGO_ENABLED = 0;
