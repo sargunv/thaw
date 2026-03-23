@@ -5,7 +5,8 @@
   "useTabs": false,
   "newLineKind": "lf",
   "excludes": [
-    "**/.dprint"
+    "**/.dprint",
+    "gomod2nix.toml"
   ],
   "markdown": {
     "textWrap": "always"
